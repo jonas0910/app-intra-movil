@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/auth_repository.dart';
 import '../../home/presentation/screens/home_screen.dart';
@@ -19,6 +20,26 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePass = true;
   int _configTapCount = 0;
+
+  String? _entityName;
+  String? _entityLogo;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBranding();
+  }
+
+  Future<void> _loadBranding() async {
+    final name = await AppConfig.getEntityName();
+    final logo = await AppConfig.getEntityLogo();
+    if (mounted) {
+      setState(() {
+        _entityName = name;
+        _entityLogo = logo;
+      });
+    }
+  }
 
   Future<void> _login() async {
     final email = _emailController.text.trim();
@@ -77,34 +98,100 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 24),
 
-                // --- Logo ---
+                // --- Logo & Entity Branding ---
                 GestureDetector(
                   onTap: _onConfigTap,
-                  child: Container(
-                    width: 68,
-                    height: 68,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.grid_view_rounded,
-                      size: 32,
-                      color: Colors.white,
-                    ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 90,
+                        height: 90,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfaceElevated,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppTheme.border,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: _entityLogo != null && _entityLogo!.isNotEmpty
+                            ? Image.network(
+                                _entityLogo!,
+                                fit: BoxFit.contain,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return const Center(
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(
+                                  Icons.security_rounded,
+                                  size: 40,
+                                  color: AppTheme.primary,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.security_rounded,
+                                size: 40,
+                                color: AppTheme.primary,
+                              ),
+                      ),
+                      const SizedBox(height: 20),
+                      if (_entityName != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            _entityName!.toUpperCase(),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textPrimary,
+                                  letterSpacing: 1.1,
+                                ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
                 Text(
-                  'Iniciar Sesión',
-                  style: Theme.of(context).textTheme.displayMedium,
+                  'SISTEMA DE SEGURIDAD',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2.0,
+                      ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 48),
+
+                // --- Welcome Message ---
                 Text(
-                  'Ingrese sus credenciales del sistema',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  'ACCESO INSTITUCIONAL',
+                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 22,
+                      ),
                 ),
-                const SizedBox(height: 36),
+                const SizedBox(height: 10),
+                Text(
+                  'SISTEMA INTEGRAL DE SEGURIDAD CIUDADANA',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                ),
+                const SizedBox(height: 40),
 
                 // --- Form ---
                 Container(

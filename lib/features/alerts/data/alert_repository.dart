@@ -42,7 +42,7 @@ class AlertRepository {
     final formData = FormData.fromMap({
       'id_personal': idPersonal,
       'id_tipo_alerta': idTipoAlerta,
-      if (vehiculoId != null) 'vehiculo_id': vehiculoId,
+      if (vehiculoId != null) 'id_vehiculo': vehiculoId,
       if (latitud != null) 'latitud': latitud,
       if (longitud != null) 'longitud': longitud,
       if (mensaje != null && mensaje.isNotEmpty) 'mensaje': mensaje,

@@ -14,8 +14,8 @@ class AppTheme {
   static const Color border = Color(0xFF2E333D);
   static const Color borderSubtle = Color(0xFF252930);
 
-  static const Color primary = Color(0xFF4A90D9);
-  static const Color primaryMuted = Color(0xFF3A72B0);
+  static const Color primary = Color(0xFF3877C9); // Deeper, more formal institutional blue
+  static const Color primaryMuted = Color(0xFF2B5BA1);
 
   static const Color danger = Color(0xFFD94A4A);
   static const Color success = Color(0xFF3DB87A);

@@ -6,7 +6,7 @@ import '../../../../core/config/app_config.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/services/background_location_service.dart';
 import '../../../auth/presentation/login_screen.dart';
-import '../../../vehicles/data/models/vehicle_model.dart';
+import '../../../vehicles/data/models/assigned_vehicle_model.dart';
 import '../../../vehicles/data/vehicle_repository.dart';
 import '../../../alerts/presentation/screens/create_alert_screen.dart';
 import '../../../alerts/presentation/screens/alert_history_screen.dart';
@@ -24,12 +24,14 @@ class _HomeScreenState extends State<HomeScreen> {
   String _employeeCode = '';
   String _departmentName = '';
 
-  List<VehicleModel> _vehicles = [];
-  VehicleModel? _selectedVehicle;
+  List<AssignedVehicleModel> _assignedVehicles = [];
+  AssignedVehicleModel? _selectedAssignedVehicle;
   bool _loadingVehicles = true;
 
   String? _lastLocationTime;
   Timer? _serviceCheckTimer;
+  String? _entityName;
+  String? _entityLogo;
 
   @override
   void initState() {
@@ -70,30 +72,61 @@ class _HomeScreenState extends State<HomeScreen> {
     final name = await AppConfig.getEmployeeName();
     final code = await AppConfig.getEmployeeCode();
     final dept = await AppConfig.getDepartmentName();
-    final vehicleId = await AppConfig.getSelectedVehicleId();
+    final entName = await AppConfig.getEntityName();
+    final entLogo = await AppConfig.getEntityLogo();
 
     setState(() {
       _isTracking = isRunning;
       _employeeName = name;
       _employeeCode = code;
       _departmentName = dept;
+      _entityName = entName;
+      _entityLogo = entLogo;
     });
 
     try {
       final vehicleRepo = VehicleRepository();
-      final vehicles = await vehicleRepo.getVehicles();
-      VehicleModel? selected;
-      if (vehicleId != null) {
-        selected = vehicles.where((v) => v.id == vehicleId).firstOrNull;
-      }
+      final assignedVehicles = await vehicleRepo.getAssignedVehicles();
+      final selectedId = await AppConfig.getSelectedVehicleId();
+
       setState(() {
-        _vehicles = vehicles;
-        _selectedVehicle = selected;
+        _assignedVehicles = assignedVehicles;
         _loadingVehicles = false;
+        
+        if (assignedVehicles.isNotEmpty) {
+          // Find previously selected vehicle in the new list
+          final found = assignedVehicles.where((v) => v.idVehiculo == selectedId);
+          if (found.isNotEmpty) {
+            _selectedAssignedVehicle = found.first;
+          } else {
+            // Auto-select first only if nothing was stored OR it no longer exists
+             _selectedAssignedVehicle = assignedVehicles.first;
+             _onSelectVehicle(_selectedAssignedVehicle!);
+          }
+        } else {
+          _selectedAssignedVehicle = null;
+          AppConfig.clearSelectedVehicle();
+        }
       });
     } catch (e) {
       setState(() => _loadingVehicles = false);
     }
+  }
+
+  Future<void> _onSelectVehicle(AssignedVehicleModel vehicle) async {
+    await AppConfig.setSelectedVehicle(
+      id: vehicle.idVehiculo,
+      placa: vehicle.vehiculo.placa,
+      tipo: vehicle.vehiculo.tipo,
+    );
+    setState(() => _selectedAssignedVehicle = vehicle);
+    
+    // If tracking is active, the task handler reads from prefs every interval, so it's fine.
+  }
+
+  Future<void> _onDeselectVehicle() async {
+    await AppConfig.clearSelectedVehicle();
+    setState(() => _selectedAssignedVehicle = null);
   }
 
   Future<void> _toggleTracking(bool enable) async {
@@ -126,34 +159,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _lastLocationTime = null;
       });
     }
-  }
-
-  Future<void> _selectVehicle() async {
-    final result = await showModalBottomSheet<VehicleModel?>(
-      context: context,
-      backgroundColor: AppTheme.backgroundCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-      ),
-      builder: (ctx) => _VehicleSelectorSheet(
-        vehicles: _vehicles,
-        selected: _selectedVehicle,
-      ),
-    );
-
-    if (result != null) {
-      await AppConfig.setSelectedVehicle(
-        id: result.id,
-        placa: result.placa,
-        tipo: result.tipo,
-      );
-      setState(() => _selectedVehicle = result);
-    }
-  }
-
-  Future<void> _clearVehicle() async {
-    await AppConfig.clearSelectedVehicle();
-    setState(() => _selectedVehicle = null);
   }
 
   Future<void> _logout() async {
@@ -204,7 +209,36 @@ class _HomeScreenState extends State<HomeScreen> {
     return WithForegroundTask(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Panel Principal'),
+          title: Row(
+            children: [
+              if (_entityLogo != null && _entityLogo!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Image.network(
+                      _entityLogo!,
+                      height: 24,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.security,
+                              size: 20, color: AppTheme.primary),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Text(
+                  _entityName ?? 'CENTRO DE CONTROL MUNICIPAL',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                ),
+              ),
+            ],
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.logout_rounded, size: 22),
@@ -232,10 +266,11 @@ class _HomeScreenState extends State<HomeScreen> {
             Padding(
               padding: const EdgeInsets.only(left: 2, bottom: 10),
               child: Text(
-                'MÓDULOS',
+                'MÓDULOS OPERATIVOS',
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      letterSpacing: 1.2,
-                      color: AppTheme.textMuted,
+                      letterSpacing: 1.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.primary,
                     ),
               ),
             ),
@@ -258,8 +293,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildModuleCard(
               icon: Icons.history_rounded,
               iconColor: AppTheme.primary,
-              title: 'Mis Alertas',
-              subtitle: 'Historial y seguimiento de alertas enviadas',
+              title: 'Mis Alertas e Intervenciones',
+              subtitle: 'Bitácora de incidencias reportadas en servicio',
               onTap: () {
                 Navigator.push(
                   context,
@@ -440,7 +475,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Icon(Icons.directions_car_outlined,
                   size: 18, color: AppTheme.textMuted),
               const SizedBox(width: 6),
-              Text('Vehículo',
+              Text('Asignación de Unidad',
                   style: Theme.of(context).textTheme.titleSmall),
               const Spacer(),
               if (_loadingVehicles)
@@ -451,63 +486,141 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 10),
-          if (_selectedVehicle != null) ...[
+          const SizedBox(height: 12),
+          if (_assignedVehicles.isNotEmpty) ...[
+            ..._assignedVehicles.map((assigned) {
+              final isSelected =
+                  _selectedAssignedVehicle?.idVehiculo == assigned.idVehiculo;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppTheme.primary.withValues(alpha: 0.05)
+                        : AppTheme.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppTheme.primary.withValues(alpha: 0.3)
+                          : Colors.transparent,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _getVehicleIcon(assigned.vehiculo.tipo),
+                        size: 20,
+                        color:
+                            isSelected ? AppTheme.primary : AppTheme.textMuted,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              assigned.vehiculo.placa,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    color: isSelected
+                                        ? AppTheme.primary
+                                        : AppTheme.textPrimary,
+                                    fontWeight:
+                                        isSelected ? FontWeight.w700 : null,
+                                  ),
+                            ),
+                            Text(
+                              '${assigned.vehiculo.marca} ${assigned.vehiculo.modelo}'
+                                  .trim(),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(Icons.route_outlined,
+                                    size: 12, color: AppTheme.textMuted),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    '${assigned.ruta.nombre} · ${assigned.ruta.sector}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(fontSize: 11),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      isSelected
+                          ? OutlinedButton(
+                              onPressed: _onDeselectVehicle,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppTheme.danger,
+                                side: BorderSide(
+                                    color:
+                                        AppTheme.danger.withValues(alpha: 0.5)),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                minimumSize: const Size(0, 32),
+                              ),
+                              child: const Text('Quitar',
+                                  style: TextStyle(fontSize: 12)),
+                            )
+                          : FilledButton(
+                              onPressed: () => _onSelectVehicle(assigned),
+                              style: FilledButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                minimumSize: const Size(0, 32),
+                              ),
+                              child: const Text('Poner',
+                                  style: TextStyle(fontSize: 12)),
+                            ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+            if (_selectedAssignedVehicle == null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Center(
+                  child: Text(
+                    'Ningún vehículo seleccionado (Rastreo Personal)',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.danger,
+                          fontStyle: FontStyle.italic,
+                        ),
+                  ),
+                ),
+              ),
+          ] else ...[
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 10),
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppTheme.surface,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    _getVehicleIcon(_selectedVehicle!.tipo),
-                    size: 20,
-                    color: AppTheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _selectedVehicle!.placa,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(color: AppTheme.primary),
-                        ),
-                        Text(
-                          '${_selectedVehicle!.marca} ${_selectedVehicle!.modelo}'
-                              .trim(),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, size: 18, color: AppTheme.textMuted),
-                    onPressed: _clearVehicle,
-                    tooltip: 'Desvincular',
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-            ),
-          ] else ...[
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _loadingVehicles || _vehicles.isEmpty
-                    ? null
-                    : _selectVehicle,
-                icon: const Icon(Icons.add, size: 16),
-                label: Text(
-                  _vehicles.isEmpty && !_loadingVehicles
-                      ? 'Sin vehículos disponibles'
-                      : 'Seleccionar vehículo (opcional)',
+              child: Center(
+                child: Text(
+                  _loadingVehicles
+                      ? 'Cargando asignación...'
+                      : 'Sin vehículo asignado para hoy',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textMuted,
+                        fontStyle: FontStyle.italic,
+                      ),
                 ),
               ),
             ),
@@ -552,15 +665,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
                     Text(subtitle,
                         style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right,
-                  size: 20, color: AppTheme.textMuted),
+              Icon(Icons.chevron_right, size: 20, color: AppTheme.textMuted),
             ],
           ),
         ),
@@ -585,123 +696,5 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _serviceCheckTimer?.cancel();
     super.dispose();
-  }
-}
-
-// --- Vehicle Selector Bottom Sheet ---
-class _VehicleSelectorSheet extends StatelessWidget {
-  final List<VehicleModel> vehicles;
-  final VehicleModel? selected;
-
-  const _VehicleSelectorSheet({required this.vehicles, this.selected});
-
-  IconData _getIcon(String tipo) {
-    switch (tipo.toLowerCase()) {
-      case 'motocicleta':
-        return Icons.two_wheeler;
-      case 'bicicleta':
-        return Icons.pedal_bike;
-      case 'patrullero':
-        return Icons.local_police;
-      default:
-        return Icons.directions_car;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text('Seleccionar Vehículo',
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 4),
-          Text('Unidad vehicular para el rastreo',
-              style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 14),
-          ...vehicles.map((v) {
-            final isSelected = selected?.id == v.id;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              child: Material(
-                color: isSelected
-                    ? AppTheme.primary.withValues(alpha: 0.08)
-                    : AppTheme.surface,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  onTap: () => Navigator.pop(context, v),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _getIcon(v.tipo),
-                          size: 20,
-                          color: isSelected
-                              ? AppTheme.primary
-                              : AppTheme.textMuted,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                v.placa,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      color: isSelected
-                                          ? AppTheme.primary
-                                          : null,
-                                    ),
-                              ),
-                              Text(
-                                '${v.tipo.toUpperCase()} · ${v.marca} ${v.modelo}',
-                                style:
-                                    Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (isSelected)
-                          Icon(Icons.check_circle,
-                              color: AppTheme.primary, size: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }),
-          if (vehicles.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Center(
-                child: Text(
-                  'No hay vehículos disponibles',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 }

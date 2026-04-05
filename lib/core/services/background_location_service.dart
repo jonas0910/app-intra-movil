@@ -58,7 +58,6 @@ class LocationTaskHandler extends TaskHandler {
 
     // Read selected vehicle info
     final int? vehiculoId = prefs.getInt('selected_vehicle_id');
-    final String? vehiculoTipo = prefs.getString('selected_vehicle_tipo');
 
     final headers = {
       'Content-Type': 'application/json',
@@ -100,10 +99,10 @@ class LocationTaskHandler extends TaskHandler {
         ),
       );
 
-      // Determine tipo_ubicacion based on vehicle type
+      // Determine tipo_ubicacion based on vehicle context
       String tipoUbicacion = 'personal';
-      if (vehiculoTipo != null && vehiculoTipo.isNotEmpty) {
-        tipoUbicacion = vehiculoTipo.toLowerCase();
+      if (vehiculoId != null) {
+        tipoUbicacion = 'vehiculo';
       }
 
       currentBody = {
@@ -111,12 +110,8 @@ class LocationTaskHandler extends TaskHandler {
         'latitud': position.latitude,
         'longitud': position.longitude,
         'tipo_ubicacion': tipoUbicacion,
+        'vehiculo_id': vehiculoId,
       };
-
-      // Include vehicle if selected
-      if (vehiculoId != null) {
-        currentBody['vehiculo_id'] = vehiculoId;
-      }
 
       final response = await http
           .post(url, headers: headers, body: jsonEncode(currentBody))

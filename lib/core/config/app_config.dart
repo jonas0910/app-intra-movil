@@ -11,6 +11,9 @@ class AppConfig {
   static const String _keyVehicleId = 'selected_vehicle_id';
   static const String _keyVehiclePlaca = 'selected_vehicle_placa';
   static const String _keyVehicleTipo = 'selected_vehicle_tipo';
+  static const String _keyEntityName = 'entity_name';
+  static const String _keyEntityLogo = 'entity_logo_url';
+  static const String _keyEntityPhone = 'entity_phone';
 
   static const String defaultServerUrl = 'http://192.168.1.100:8000';
 
@@ -102,6 +105,33 @@ class AppConfig {
   static Future<String?> getSelectedVehicleTipo() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyVehicleTipo);
+  }
+
+  // --- Entity Branding ---
+  static Future<String?> getEntityName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyEntityName);
+  }
+
+  static Future<String?> getEntityLogo() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyEntityLogo);
+  }
+
+  static Future<String?> getEntityPhone() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyEntityPhone);
+  }
+
+  static Future<void> setEntityInfo({
+    required String name,
+    required String logoUrl,
+    String? phone,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyEntityName, name);
+    await prefs.setString(_keyEntityLogo, logoUrl);
+    if (phone != null) await prefs.setString(_keyEntityPhone, phone);
   }
 
   // --- Logout ---
